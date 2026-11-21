@@ -59,8 +59,8 @@ ENGINE_VERSION = "0.1.0"
 # own web app ships and yt-dlp publishes openly. They identify the *app*,
 # not a user; there is no account, password or API key here. Injected at
 # build time from the installed yt-dlp source; never printed or logged.
-_AUTH = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
-_LEGACY_AUTH = "AAAAAAAAAAAAAAAAAAAAAIK1zgAAAAAA2tUWuhGZ2JceoId5GwYWU5GspY4%3DUq7gzFoCZs1QfwGoVdvSac3IniczZEYXIcDyumCauIXpcAPorE"
+_AUTH = ""
+_LEGACY_AUTH = ""
 
 _API_BASE = "https://api.x.com/1.1/"
 _V2_BASE = "https://api.twitter.com/2/tweets/"
