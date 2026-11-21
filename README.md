@@ -48,6 +48,15 @@ site today.
 - The engine reads **one** value from the environment:
   `X_BEARER_TOKEN`. It is never written into any file in this folder,
   never printed, never logged.
+- The guest tokens the GraphQL route needs (`_AUTH`, `_LEGACY_AUTH` —
+  public client credentials X ships in its own web app) are **loaded at
+  runtime, never stored in this repo**: from `X_GUEST_AUTH` /
+  `X_LEGACY_AUTH` env vars first, then from an installed yt-dlp
+  (`TwitterBaseIE._AUTH` / `_LEGACY_AUTH`). With neither source the
+  GraphQL route raises 502 and `auto` falls through to syndication,
+  which needs no auth at all. (v0.2.0 — before that the values were
+  hardcoded in `engine.py`; they were removed 2026-11-21 so the repo
+  carries no token-like strings.)
 - The app's **Consumer Key / Secret are not used**: app-only API calls
   need only the Bearer token. They matter only for OAuth 1.0a
   user-context calls, which this engine does not make. Keep them
@@ -153,7 +162,10 @@ order:
    when GraphQL starts failing, take the new id from the latest yt-dlp
    `twitter.py` (`TwitterIE._GRAPHQL_ENDPOINT`).
 2. **The bearer tokens** (`_AUTH`, `_LEGACY_AUTH`) — public client
-   credentials X ships in its own web app; same source as (1).
+   credentials X ships in its own web app; loaded at runtime from an
+   installed yt-dlp (`TwitterBaseIE`) or `X_GUEST_AUTH` / `X_LEGACY_AUTH`
+   env vars, never stored in this repo. If GraphQL breaks, update
+   yt-dlp or set the env vars from the latest yt-dlp `twitter.py`.
 3. **The feature flags** (`_GRAPHQL_FEATURES`) — same source as (1).
 4. **The syndication endpoint** — the most stable piece; it has worked
    unchanged for years and needs no token refresh.

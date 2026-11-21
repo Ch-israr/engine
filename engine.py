@@ -1,7 +1,9 @@
 """TwitterDown engine — standalone X video extractor (Python stdlib only).
 
 Turns an x.com / twitter.com tweet link into direct video.twimg.com MP4
-links, without yt-dlp and without any X account or API key.
+links, without any X account or API key. It is stdlib-only for extraction;
+the public guest tokens are loaded at runtime from an installed yt-dlp
+(or X_GUEST_AUTH env vars) — nothing token-like is stored in this file.
 
 Two routes in, tried in this order (same strategy yt-dlp uses):
 
@@ -53,14 +55,47 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-ENGINE_VERSION = "0.1.0"
+ENGINE_VERSION = "0.2.0"
 
-# Public client credentials for X's guest activation — the same values X's
-# own web app ships and yt-dlp publishes openly. They identify the *app*,
-# not a user; there is no account, password or API key here. Injected at
-# build time from the installed yt-dlp source; never printed or logged.
-_AUTH = ""
-_LEGACY_AUTH = ""
+# Guest credentials for X's guest activation are loaded at runtime, never
+# stored in this file, so the repo carries no token-like strings at all.
+# Sources, in order: X_GUEST_AUTH / X_LEGACY_AUTH env vars, then an
+# installed yt-dlp (the same public values its extractor ships — they
+# identify the *app*, not a user; no account, password or API key).
+# Without either source the GraphQL route raises 502 and the auto chain
+# falls through to syndication, which needs no auth at all.
+_GUEST_AUTH = None  # cached (auth, legacy_auth) pair once resolved
+
+
+def _guest_auth():
+    """Return the (auth, legacy_auth) guest credentials for X.
+
+    Loaded lazily on first use and cached per process. Raises
+    EngineError(502) when no source is available — the auto chain
+    treats that as "try the next route", so downloads fall through
+    to syndication instead of failing.
+    """
+    global _GUEST_AUTH
+    if _GUEST_AUTH is not None:
+        return _GUEST_AUTH
+    auth = os.environ.get("X_GUEST_AUTH", "") or ""
+    legacy = os.environ.get("X_LEGACY_AUTH", "") or ""
+    if not auth:
+        try:
+            from yt_dlp.extractor.twitter import TwitterBaseIE
+            auth = getattr(TwitterBaseIE, "_AUTH", "") or ""
+            legacy = getattr(TwitterBaseIE, "_LEGACY_AUTH", "") or legacy
+        except Exception:
+            pass
+    if not auth:
+        raise EngineError(
+            502,
+            "Guest credentials unavailable (install yt-dlp or set X_GUEST_AUTH)",
+        )
+    _GUEST_AUTH = (auth, legacy)
+    return _GUEST_AUTH
+
+
 
 _API_BASE = "https://api.x.com/1.1/"
 _V2_BASE = "https://api.twitter.com/2/tweets/"
@@ -247,10 +282,11 @@ def _fetch_guest_token():
     global _guest_token
     if _guest_token:
         return _guest_token
+    auth, _ = _guest_auth()
     status, body = _http_json(
         _API_BASE + "guest/activate.json",
         headers={
-            "Authorization": "Bearer " + _AUTH,
+            "Authorization": "Bearer " + auth,
             # X answers 404 to requests with urllib's default UA; a real
             # browser UA is required even for this anonymous endpoint.
             "User-Agent": _BROWSER_UA,
@@ -327,10 +363,11 @@ def _graphql_status(twid):
         "fieldToggles": json.dumps({"withArticleRichContentState": False}, separators=(",", ":")),
     }
     url = _GRAPHQL_BASE + _GRAPHQL_ENDPOINT + "?" + urllib.parse.urlencode(query)
+    auth, _ = _guest_auth()
     for attempt in range(2):
         token = _fetch_guest_token()
         status, body = _http_json(url, headers={
-            "Authorization": "Bearer " + _AUTH,
+            "Authorization": "Bearer " + auth,
             "x-guest-token": token,
             "x-twitter-client-language": "en",
             "User-Agent": _BROWSER_UA,
